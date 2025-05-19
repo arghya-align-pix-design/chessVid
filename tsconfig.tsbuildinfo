@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/home.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/ui/button.tsx","./src/components/ui/card.tsx","./src/components/ui/carousel.tsx","./src/components/ui/menubar.tsx","./src/compos/chessgame.tsx","./src/compos/chessmanager.tsx","./src/compos/chessboard.tsx","./src/lib/utils.ts"],"version":"5.7.3"}

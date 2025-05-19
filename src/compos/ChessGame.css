@@ -1,0 +1,29 @@
+.video-container {
+    display: flex;
+    justify-content: space-between;
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+}
+
+#my-video {
+    width: 250px;
+    height: 250px;
+    display:inline-block;
+    position: absolute;
+    bottom: 10%;
+    right: 10%;
+    
+}
+
+#opponent-video {
+    width: 250px;
+    height: 250px;
+    display:inline-block;
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    
+}

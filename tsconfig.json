@@ -15,6 +15,9 @@
     "strict": true,
     "moduleResolution": "Node",
     "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    //"moduleResolution": "node",
+    "esModuleInterop": true
   },
   "include": ["src"]
 }

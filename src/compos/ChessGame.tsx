@@ -4,7 +4,7 @@ import { Chess } from "chess.js";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { Device, types } from "mediasoup-client";
-import { RtpCapabilities, RtpParameters } from "mediasoup-client/types";
+import { RtpCapabilities, RtpParameters } from "mediasoup-client";
 import "./ChessGame.css";
 // import {
 //     DtlsParameters,
@@ -67,10 +67,10 @@ const ChessGame = () => {
   );
   const { roomId } = useParams(); // Get room ID from URL
   const [game, setGame] = useState(new Chess());
-  const [opponentJoined, setOpponentJoined] = useState(false);
-  const [routerRtpCapabilities, setRouterRtpCapabilities] =
+  //const [opponentJoined, setOpponentJoined] = useState(false);
+  //const [routerRtpCapabilities, setRouterRtpCapabilities] =
     useState<RtpCapabilities | null>(null); // Set state for routerRtpCapabilities
-  const [pendingTransportOptions, setPendingTransportOptions] =
+  //const [pendingTransportOptions, setPendingTransportOptions] =
     useState<TransportOptions | null>(null);
 
   //let transportConnected = false;
@@ -99,7 +99,7 @@ const ChessGame = () => {
     // Detect when the opponent joins
     socket.on("opponentJoined", () => {
       console.log("Opponent has joined!"); // <-- log
-      setOpponentJoined(true);
+      //setOpponentJoined(true);
     });
 
     console.log("rtcCaps emission went off NOW");
@@ -368,17 +368,17 @@ const ChessGame = () => {
                     // video.style.background = 'black';
                     // video.style.border = '2px solid lime';
                     // document.body.appendChild(video); // 🚨 Temporarily inject into body to debug
-                    // vidSet=true;
+                     vidSet=true;
 
-                    setTimeout(() => {
-                      video.play().catch((err) => {
-                      console.error("❌ Error playing video:", err);
-                      });
-                    }, 3000);
+                    // setTimeout(() => {
+                    //   video.play().catch((err) => {
+                    //   console.error("❌ Error playing video:", err);
+                    //   });
+                    // }, 3000);
                     
-                    await consumer.resume();
+                    // await consumer.resume();
 
-                    console.log("✅ Video element added to DOM", video);
+                    // console.log("✅ Video element added to DOM", video);
 
                     //const videoTrack = consumer.track;
 

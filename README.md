@@ -52,3 +52,14 @@ export default tseslint.config({
   },
 })
 ```
+## About
+A chess match app where players can play in real-time and audiences can join with video and audio.
+
+⚙️ **Work in Progress:** MediaSoup-based video/audio integration is currently under development. Core chess gameplay is functional.
+
+### Features
+- Real-time multiplayer chess via Socket.IO
+- Room-based matchmaking
+- Audience support (coming soon)
+- MediaSoup integration for video/audio (WIP)
+

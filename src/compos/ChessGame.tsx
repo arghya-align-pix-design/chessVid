@@ -4,13 +4,10 @@ import { Chess } from "chess.js";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { Device, types } from "mediasoup-client";
-import { RtpCapabilities} from "mediasoup-client"; //, RtpParameters 
+import type { RtpCapabilities } from 'mediasoup-client/types';
+
+// import { RtpCapabilities } from 'mediasoup-client/lib/types';
 import "./ChessGame.css";
-// import {
-//     DtlsParameters,
-//     IceParameters,
-//     IceCandidate,
-//   } from "mediasoup-client/lib/Transport";
 
 const socket = io("http://localhost:8269", {
   transports: ["websocket"],
@@ -52,6 +49,7 @@ const ChessGame = () => {
   const mySocketRef = useRef<string | null | undefined>(null);
   const producerIdsRef = useRef<{ video?: string; audio?: string }>({});
   const isTransportCreatedRef = useRef(false);
+
   // Define a ref or state to hold producers
   const producersRef = useRef<{
     video?: types.Producer;
@@ -69,9 +67,9 @@ const ChessGame = () => {
   const [game, setGame] = useState(new Chess());
   //const [opponentJoined, setOpponentJoined] = useState(false);
   //const [routerRtpCapabilities, setRouterRtpCapabilities] =
-    useState<RtpCapabilities | null>(null); // Set state for routerRtpCapabilities
+    //useState<RtpCapabilities | null>(null); // Set state for routerRtpCapabilities
   //const [pendingTransportOptions, setPendingTransportOptions] =
-    useState<TransportOptions | null>(null);
+   // useState<TransportOptions | null>(null);
 
   //let transportConnected = false;
   //let audioProduced = false;

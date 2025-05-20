@@ -1,5 +1,5 @@
 import os from "os";
-import { WorkerSettings, RouterOptions, WebRtcTransportOptions } from "mediasoup/node/lib/types";
+import { WorkerSettings, RouterOptions, WebRtcTransportOptions } from "./types/mediasoup";
 
 export const mediasoupConfig = {
   worker: <WorkerSettings>{
@@ -40,9 +40,10 @@ export const mediasoupConfig = {
   },
 
   webRtcTransport: <WebRtcTransportOptions>{
-    listenInfos: [{ ip: "0.0.0.0",
+    listenIps: [{ 
+      ip: "0.0.0.0",
       //announcedIp: " 192.168.29.111", // <- IMPORTANT! Replace with your actual public IP
-      protocol: "udp", // You can also use 'udp/tcp' if needed
+      //protocol: "udp", // You can also use 'udp/tcp' if needed
      }],  //, announcedIp: "YOUR_PUBLIC_IP"
     maxSctpMessageSize: 262144, // Increase SCTP size for large messages
     enableUdp: true,

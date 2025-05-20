@@ -6,8 +6,8 @@ import { initializeWorker,getRouter } from "./someConfig/worker";
 import { createWebRtcTransport} from "./someConfig/mediasoupManager";// , createConsumer 
 import { RtpCapabilities } from "./types/RtpCaps";
 //import { WebRtcTransport } from "mediasoup";///node/lib/types
-import type { RtpParameters, WebRtcTransport,Producer, Consumer } from './types/mediasoup';
-//import * as mediasoupTypes from "mediasoup";///node/lib/types, RtpCapabilities
+import type {Producer} from './types/mediasoup';
+//import * as mediasoupTypes from "mediasoup";///node/lib/types, RtpCapabilities RtpParameters, WebRtcTransport,, Consumer 
 
 
 let isMediasoupReady = false;
@@ -264,7 +264,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
   });
 
   // Backend - Handle creating the receive transport
-  socket.on("create-recv-transport",async(data: any, // or just `null`, but you must accept it because the emit sends two arguments
+  socket.on("create-recv-transport",async(//data: any, // or just `null`, but you must accept it because the emit sends two arguments
     callback: (transportOptions: TransportOptions) => void) =>{
     try {
       const transport=await createWebRtcTransport();
@@ -383,7 +383,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     }
   });
 
-  socket.on("produce", async ({ kind, rtpParameters,senderId, roomId }, callback) => {
+  socket.on("produce", async ({ kind, rtpParameters, roomId }, callback) => {//senderId,
     const transport = sendTransports[socket.id];
 
     //IF TRANSPORT ALREADY EXISTS

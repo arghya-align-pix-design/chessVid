@@ -1,11 +1,9 @@
-
 import express from "express";
 import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
 import { initializeWorker,getRouter } from "./someConfig/worker";
 import { createWebRtcTransport} from "./someConfig/mediasoupManager";// , createConsumer 
-import { types } from 'mediasoup';
 import { RtpCapabilities } from "./types/RtpCaps";
 //import { WebRtcTransport } from "mediasoup";///node/lib/types
 import type { RtpParameters, WebRtcTransport,Producer, Consumer } from './types/mediasoup';
@@ -38,18 +36,18 @@ interface Room {
   players: Player[];
 }
 
-type ConsumerData = {
-  id: string;
-  producerId: string;
-  kind: "audio" | "video";
-  rtpParameters: RtpParameters;
-};
+// type ConsumerData = {
+//   id: string;
+//   producerId: string;
+//   kind: "audio" | "video";
+//   rtpParameters: RtpParameters;
+// };
 
-interface ConsumeRequest {
-  rtpCapabilities: RtpCapabilities;
-  roomId: string;
-  consumerId: string;
-}
+// interface ConsumeRequest {
+//   rtpCapabilities: RtpCapabilities;
+//   roomId: string;
+//   consumerId: string;
+// }
 
 interface ServerToClientEvents {
   colorAssigned: (color: "white" | "black") => void;
@@ -96,27 +94,27 @@ interface ClientToServerEvents {
     },
     callback: (response: { id: string, kind:"audio"|"video" }) => void
   ) => void;
-  "ready-to-consume":(params: { roomId: string;}) => void;
-  "consume":(params: { rtpCapabilities:RtpCapabilities, roomId:string, consumerId:string}, //kind:"audio"|"video",
-    callback:(consumers:ConsumerData[]) => void)=>void; 
-  "resume-consumer":(params:{consumerId: string, kind:"audio"|"video"})=>void;
+  //"ready-to-consume":(params: { roomId: string;}) => void;
+  // "consume":(params: { rtpCapabilities:RtpCapabilities, roomId:string, consumerId:string}, //kind:"audio"|"video",
+  //   callback:(consumers:ConsumerData[]) => void)=>void; 
+  //"resume-consumer":(params:{consumerId: string, kind:"audio"|"video"})=>void;
 }
 
 // Define the expected types for the consume handler parameters
-interface ConsumeParams {
-  producerId: string;
-  kind: "audio" | "video";
-  roomId: string;
-  rtpCapss:RtpCapabilities;
-}
+// interface ConsumeParams {
+//   producerId: string;
+//   kind: "audio" | "video";
+//   roomId: string;
+//   rtpCapss:RtpCapabilities;
+// }
 
 // Define the expected type for the callback to be called after consuming
-type ConsumeCallback = (params: {
-  id: string;
-    producerId: string;
-    kind:"audio" | "video";
-    rtpParameters:RtpParameters;
-}) => void;
+// type ConsumeCallback = (params: {
+//   id: string;
+//     producerId: string;
+//     kind:"audio" | "video";
+//     rtpParameters:RtpParameters;
+// }) => void;
 
 type TransportOptions = {
   id: string;
@@ -141,14 +139,14 @@ const  recvTransports: Record<string, any> = {};
 const producers: Record<string, { audio?: Producer, video?: Producer }> = {};
 const roomToSockets = new Map<string, Set<string>>(); // you probably have something like this
 const socketToRoom = new Map<string, string>();
-const socketIdToRecvTransport = new Map<string, WebRtcTransport>();
+//const socketIdToRecvTransport = new Map<string, WebRtcTransport>();
 const socketIdToRtpCapabilities = new Map<string, RtpCapabilities>();
-const pendingProducers: Record<string, any[]> = {}; // socketId => producers[]
-const readyToConsumeSockets = new Set<string>();
+//const pendingProducers: Record<string, any[]> = {}; // socketId => producers[]
+//const readyToConsumeSockets = new Set<string>();
 //const consumers: { [socketId: string]: mediasoupTypes.Consumer[] } = {};
-const consumers: Record<string, { audio?: Consumer; video?:Consumer }> = {};
-let videoProducer:Producer;
-let audioProducer:Producer;
+//const consumers: Record<string, { audio?: Consumer; video?:Consumer }> = {};
+//let videoProducer:Producer;
+//let audioProducer:Producer;
 
 //const [rtpCaps,setRtpCaps]=useState<RtpCapabilities>();
 let RTPSS:RtpCapabilities;
@@ -165,7 +163,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
 
   //Router initiated
   const router = getRouter();
-  const { codecs = [] } = router.rtpCapabilities;
+  //const { codecs = [] } = router.rtpCapabilities;
   
   socket.on("joinRoom", async (roomId: string) => {
 
@@ -298,33 +296,33 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     }
 });
 
-  socket.on("resume-consumer",async ({consumerId,kind}:{consumerId:string, kind: "audio"|"video"})=>{
-      const consumerContainer= consumers[socket.id];
+  // socket.on("resume-consumer",async ({consumerId,kind}:{consumerId:string, kind: "audio"|"video"})=>{
+  //     const consumerContainer= consumers[socket.id];
 
-      if (!consumerContainer) {
-        console.warn(`⚠️ No consumers found for socket ${socket.id}`);
-        return;
-      }
+  //     if (!consumerContainer) {
+  //       console.warn(`⚠️ No consumers found for socket ${socket.id}`);
+  //       return;
+  //     }
 
-      const consumer = kind === "video" ? consumerContainer.video : consumerContainer.audio;
+  //     const consumer = kind === "video" ? consumerContainer.video : consumerContainer.audio;
 
-      if (!consumer) {
-        console.warn(`⚠️ No ${kind} consumer found for socket ${socket.id}`);
-        return;
-      }
+  //     if (!consumer) {
+  //       console.warn(`⚠️ No ${kind} consumer found for socket ${socket.id}`);
+  //       return;
+  //     }
 
-      if (consumer.id !== consumerId) {
-        console.warn(`❗Consumer ID mismatch for ${kind}: expected ${consumer.id}, got ${consumerId}`);
-        return;
-      }
+  //     if (consumer.id !== consumerId) {
+  //       console.warn(`❗Consumer ID mismatch for ${kind}: expected ${consumer.id}, got ${consumerId}`);
+  //       return;
+  //     }
 
-      try {
-        //await consumer.resume();
-        console.log(`✅ ${kind.toUpperCase()} consumer resumed for socket ${socket.id}`);
-      } catch (err) {
-        console.error(`❌ Failed to resume ${kind} consumer for socket ${socket.id}`, err);
-      }
-  })
+  //     try {
+  //       //await consumer.resume();
+  //       console.log(`✅ ${kind.toUpperCase()} consumer resumed for socket ${socket.id}`);
+  //     } catch (err) {
+  //       console.error(`❌ Failed to resume ${kind} consumer for socket ${socket.id}`, err);
+  //     }
+  // })
 
   
   socket.on("connect-transport", async ({ dtlsParameters }, callback) => {
@@ -416,15 +414,15 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
       //producers are stored in object via socketid of user
       producers[socket.id][kind]=  producer;
 
-      if(kind==="audio"){
-        audioProducer = producer;
-        console.log(`AUDIO Producer created: ${producer.id} for ${socket.id}  ${kind}`);
-        socket.data.audP=true;
-      }else{
-        videoProducer=producer;
-        console.log(`🎥 VIDEO Producer created: ${producer.id} for ${socket.id}  ${kind}`);
-        socket.data.vidP=true;
-      }
+      // if(kind==="audio"){
+      //   audioProducer = producer;
+      //   console.log(`AUDIO Producer created: ${producer.id} for ${socket.id}  ${kind}`);
+      //   socket.data.audP=true;
+      // }else{
+      //   videoProducer=producer;
+      //   console.log(`🎥 VIDEO Producer created: ${producer.id} for ${socket.id}  ${kind}`);
+      //   socket.data.vidP=true;
+      // }
       
       console.log(`producer for socket ${socket.id}: id is ${producer.id}`);  //${producer} 
       mediasoupProducers.set(producer.id, producer);
@@ -450,116 +448,116 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
 
   //this request comes from inside transport created
   //this evennt is triggered by the  transport
-  socket.on(
-    "consume",
-    async (
-    { rtpCapabilities, roomId, consumerId }: ConsumeRequest,
-      callback: (consumers: ConsumerData[]) => void
-    ) => {
-    try {
+  // socket.on(
+  //   "consume",
+  //   async (
+  //   { rtpCapabilities, roomId, consumerId }: ConsumeRequest,
+  //     callback: (consumers: ConsumerData[]) => void
+  //   ) => {
+  //   try {
 
-      if(socket.data.vidC  && socket.data.audC){
-        console.log("return, both consumers are created");
-        return;
-      }
+  //     if(socket.data.vidC  && socket.data.audC){
+  //       console.log("return, both consumers are created");
+  //       return;
+  //     }
 
-      //const { rtpCapabilities, roomId, consumerId } = args;
-      const senderId= socket.id;
-      console.log(`sender id is ${senderId}`);
+  //     //const { rtpCapabilities, roomId, consumerId } = args;
+  //     const senderId= socket.id;
+  //     console.log(`sender id is ${senderId}`);
 
-      const room = rooms[roomId];
-      if (!room) {
-        console.error("❌ Room not found");
-        return;
-      }
+  //     const room = rooms[roomId];
+  //     if (!room) {
+  //       console.error("❌ Room not found");
+  //       return;
+  //     }
 
-      const opponentSocket = room.players.find(player => player.id!== senderId );
-      if(opponentSocket)
-      console.log(`Opponent Found : ${opponentSocket.id}`);
+  //     const opponentSocket = room.players.find(player => player.id!== senderId );
+  //     if(opponentSocket)
+  //     console.log(`Opponent Found : ${opponentSocket.id}`);
       
       
-      if (!opponentSocket) {
+  //     if (!opponentSocket) {
       
-        console.error("❌ Opponent not found in room");
-        return;
+  //       console.error("❌ Opponent not found in room");
+  //       return;
       
-      }
+  //     }
 
-      const recvTransport =recvTransports[senderId];//recvTransports[opponentSocket.id];
-      console.log(`Sender ${senderId} recvTransport found`);
+  //     const recvTransport =recvTransports[senderId];//recvTransports[opponentSocket.id];
+  //     console.log(`Sender ${senderId} recvTransport found`);
 
-      if (!recvTransport) {
-        console.error("❌ Receive transport not found for in consume", socket.id);
-        return;
-      }
+  //     if (!recvTransport) {
+  //       console.error("❌ Receive transport not found for in consume", socket.id);
+  //       return;
+  //     }
 
-      const opponentProducers = producers[opponentSocket.id];
-      console.log(`Producers of opponent ${opponentSocket} is ${opponentProducers}`);
+  //     const opponentProducers = producers[opponentSocket.id];
+  //     console.log(`Producers of opponent ${opponentSocket} is ${opponentProducers}`);
 
-      if (!opponentProducers) {
-        console.error("❌ No producers found for opponent", opponentSocket.id);
-        return;
+  //     if (!opponentProducers) {
+  //       console.error("❌ No producers found for opponent", opponentSocket.id);
+  //       return;
       
-      }
+  //     }
 
-      const consumersData :ConsumerData[] = [];;
+  //     const consumersData :ConsumerData[] = [];;
 
-      for (const kind of ["audio", "video"] as const) {
-          const producer = opponentProducers[kind as "audio" | "video"];
-          if (!producer) continue;
+  //     for (const kind of ["audio", "video"] as const) {
+  //         const producer = opponentProducers[kind as "audio" | "video"];
+  //         if (!producer) continue;
 
-          const consumer = await recvTransport.consume({
-            producerId: producer.id,
-            rtpCapabilities, 
-            paused: false  //await createConsumer(
-          //   recvTransport,
-          //   producer.id,
-          //   rtpCapabilities
-          // );
-          });
+  //         const consumer = await recvTransport.consume({
+  //           producerId: producer.id,
+  //           rtpCapabilities, 
+  //           paused: false  //await createConsumer(
+  //         //   recvTransport,
+  //         //   producer.id,
+  //         //   rtpCapabilities
+  //         // );
+  //         });
 
-          await consumer.resume();
+  //         await consumer.resume();
 
-          if (!consumers[senderId]) consumers[senderId] = {};
+  //         if (!consumers[senderId]) consumers[senderId] = {};
           
-          if(kind==="video")
-          {
-            if(socket.data.vidC){console.log("Vid Consumer made");
-              return;
-            }
-            socket.data.vidC=true;
-            consumers[senderId][kind] = consumer;
-            console.log(`${kind} this type consumer ${consumer.id} using producer ${producer.id} `);
-          }else{
+  //         if(kind==="video")
+  //         {
+  //           if(socket.data.vidC){console.log("Vid Consumer made");
+  //             return;
+  //           }
+  //           socket.data.vidC=true;
+  //           consumers[senderId][kind] = consumer;
+  //           console.log(`${kind} this type consumer ${consumer.id} using producer ${producer.id} `);
+  //         }else{
 
-            if(socket.data.audC){console.log("Aud Consumer made");
-              return;
-            }
+  //           if(socket.data.audC){console.log("Aud Consumer made");
+  //             return;
+  //           }
 
-            socket.data.audC=true;
-            consumers[senderId][kind] = consumer;
-            console.log(`${kind} this type consumer ${consumer.id} using producer ${producer.id} `)
-          }
+  //           socket.data.audC=true;
+  //           consumers[senderId][kind] = consumer;
+  //           console.log(`${kind} this type consumer ${consumer.id} using producer ${producer.id} `)
+  //         }
 
-          consumersData.push({
-            id: consumer.id,
-            producerId: producer.id,
-            kind,
-            rtpParameters: consumer.rtpParameters
-          });
-        await consumer.resume();
-      }
+  //         consumersData.push({
+  //           id: consumer.id,
+  //           producerId: producer.id,
+  //           kind,
+  //           rtpParameters: consumer.rtpParameters
+  //         });
+  //       await consumer.resume();
+  //     }
 
-      // Send all consumers at once
-      callback(consumersData);
+  //     // Send all consumers at once
+  //     callback(consumersData);
 
-      console.log("✅ Consumers created and sent to", senderId);
+  //     console.log("✅ Consumers created and sent to", senderId);
 
-    } catch (err) {
+  //   } catch (err) {
     
-      console.error("❌ Error in consume:", err);
-    }
-  });
+  //     console.error("❌ Error in consume:", err);
+  //   }
+  // });
 
   
   socket.on("moveMade", (moveData: any) => {
@@ -607,10 +605,10 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
       delete recvTransports[socket.id];
     }
 
-    if (producers[socket.id]) {
-      delete producers[socket.id];
-    }
-    const userConsumers = consumers[socket.id] || [];
+    // if (producers[socket.id]) {
+    //   delete producers[socket.id];
+    // }
+    //const userConsumers = consumers[socket.id] || [];
   // userConsumers.forEach((consumer) => {
   //   try {
   //     consumer.close();
@@ -618,7 +616,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
   //     console.error("Error closing consumer:", err);
   //   }
   // });
-  delete consumers[socket.id];
+  //delete consumers[socket.id];
 
   });
 });

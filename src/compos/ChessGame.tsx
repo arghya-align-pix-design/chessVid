@@ -4,7 +4,7 @@ import { Chess } from "chess.js";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { Device, types } from "mediasoup-client";
-import { RtpCapabilities, RtpParameters } from "mediasoup-client";
+import { RtpCapabilities} from "mediasoup-client"; //, RtpParameters 
 import "./ChessGame.css";
 // import {
 //     DtlsParameters,
@@ -234,7 +234,7 @@ const ChessGame = () => {
             socketId: mySocketRef.current, // Pass the socketId
             roomId: RoomId, // Pass the roomId
           },
-          ({ id,kind }: { id: string, kind:"audio"|"video" }) => {
+          ({ id }: { id: string, kind:"audio"|"video" }) => {  //,kind
             callback({ id });
           }
         );

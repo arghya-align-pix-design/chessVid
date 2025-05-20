@@ -4,17 +4,18 @@ import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
 import { initializeWorker,getRouter } from "./someConfig/worker";
-import { createWebRtcTransport, createConsumer } from "./someConfig/mediasoupManager";
-import { RtpCapabilities, RtpParameters } from "mediasoup-client/lib/RtpParameters";
-import { WebRtcTransport } from "mediasoup/node/lib/types";
-import * as mediasoupTypes from "mediasoup/node/lib/types";
-import * as mediasoup from "mediasoup";
+import { createWebRtcTransport} from "./someConfig/mediasoupManager";// , createConsumer 
+import { types } from 'mediasoup';
+import { RtpCapabilities } from "./types/RtpCaps";
+//import { WebRtcTransport } from "mediasoup";///node/lib/types
+import type { RtpParameters, WebRtcTransport,Producer, Consumer } from './types/mediasoup';
+//import * as mediasoupTypes from "mediasoup";///node/lib/types, RtpCapabilities
 
 
 let isMediasoupReady = false;
 
 // Keep this outside of socket handlers, globally scoped in the file:
-const mediasoupProducers = new Map<string, mediasoupTypes.Producer>();
+const mediasoupProducers = new Map<string, Producer>();
 
 //Initializing mediasoup worker 
 initializeWorker()
@@ -41,7 +42,7 @@ type ConsumerData = {
   id: string;
   producerId: string;
   kind: "audio" | "video";
-  rtpParameters: mediasoupTypes.RtpParameters;
+  rtpParameters: RtpParameters;
 };
 
 interface ConsumeRequest {
@@ -137,7 +138,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
 const rooms: Record<string, Room> = {}; // Store players in rooms
 const sendTransports: Record<string, any> = {}; // key = socket.id
 const  recvTransports: Record<string, any> = {};
-const producers: Record<string, { audio?: mediasoupTypes.Producer, video?: mediasoupTypes.Producer }> = {};
+const producers: Record<string, { audio?: Producer, video?: Producer }> = {};
 const roomToSockets = new Map<string, Set<string>>(); // you probably have something like this
 const socketToRoom = new Map<string, string>();
 const socketIdToRecvTransport = new Map<string, WebRtcTransport>();
@@ -145,9 +146,9 @@ const socketIdToRtpCapabilities = new Map<string, RtpCapabilities>();
 const pendingProducers: Record<string, any[]> = {}; // socketId => producers[]
 const readyToConsumeSockets = new Set<string>();
 //const consumers: { [socketId: string]: mediasoupTypes.Consumer[] } = {};
-const consumers: Record<string, { audio?: mediasoupTypes.Consumer; video?: mediasoupTypes.Consumer }> = {};
-let videoProducer:mediasoupTypes.Producer;
-let audioProducer:mediasoupTypes.Producer;
+const consumers: Record<string, { audio?: Consumer; video?:Consumer }> = {};
+let videoProducer:Producer;
+let audioProducer:Producer;
 
 //const [rtpCaps,setRtpCaps]=useState<RtpCapabilities>();
 let RTPSS:RtpCapabilities;
@@ -164,6 +165,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
 
   //Router initiated
   const router = getRouter();
+  const { codecs = [] } = router.rtpCapabilities;
   
   socket.on("joinRoom", async (roomId: string) => {
 
@@ -233,10 +235,10 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     }
 
     console.log("rtp request JUST RECEIVED");
-    socket.emit("sent-rtp", router.rtpCapabilities);
+    socket.emit("sent-rtp", router.rtpCapabilities as any);
     socket.data.rtpSent = true; 
     const rtpCaps = router.rtpCapabilities;
-    RTPSS=rtpCaps;
+    RTPSS=rtpCaps as RtpCapabilities;
     socketIdToRtpCapabilities.set(id,RTPSS);
     console.log("rtp caps sent alreadyyy");
   });
@@ -317,7 +319,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
       }
 
       try {
-        await consumer.resume();
+        //await consumer.resume();
         console.log(`✅ ${kind.toUpperCase()} consumer resumed for socket ${socket.id}`);
       } catch (err) {
         console.error(`❌ Failed to resume ${kind} consumer for socket ${socket.id}`, err);

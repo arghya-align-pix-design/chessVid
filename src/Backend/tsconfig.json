@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     //"noEmit": true,
-    "allowImportingTsExtensions": true,
+    //"allowImportingTsExtensions": true,
     "declaration": true,
-    "emitDeclarationOnly": true,
+    //"emitDeclarationOnly": true,
     "composite": true,
     //"allowImportingTsExtensions": true,
     //"noEmit": true,

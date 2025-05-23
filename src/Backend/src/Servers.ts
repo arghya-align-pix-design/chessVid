@@ -8,12 +8,13 @@ import { RtpCapabilities } from "./types/RtpCaps";
 //import { WebRtcTransport } from "mediasoup";///node/lib/types
 import type {Producer} from './types/mediasoup';
 //import * as mediasoupTypes from "mediasoup";///node/lib/types, RtpCapabilities RtpParameters, WebRtcTransport,, Consumer 
+import * as mediasoup from "mediasoup";
 
 
 let isMediasoupReady = false;
 
 // Keep this outside of socket handlers, globally scoped in the file:
-const mediasoupProducers = new Map<string, Producer>();
+const mediasoupProducers = new Map<string, mediasoup.types.Producer>();
 
 //Initializing mediasoup worker 
 initializeWorker()

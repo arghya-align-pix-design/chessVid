@@ -16,6 +16,9 @@
     "moduleResolution": "Node",
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
     //"moduleResolution": "node",
     "esModuleInterop": true
   },

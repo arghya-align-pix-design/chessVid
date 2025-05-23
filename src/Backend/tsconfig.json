@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
-    "noEmit": true,
+    //"noEmit": true,
     "allowImportingTsExtensions": true,
     "declaration": true,
     "emitDeclarationOnly": true,
+    "composite": true,
     //"allowImportingTsExtensions": true,
     //"noEmit": true,
     /* Visit https://aka.ms/tsconfig to read more about this file */
@@ -119,6 +120,7 @@
     // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
   },
+  "include": ["src"],
   "paths": {
     "mediasoup-types": ["node_modules/mediasoup/node/lib/types"]
   }

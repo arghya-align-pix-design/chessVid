@@ -9,7 +9,7 @@ import type { RtpCapabilities } from 'mediasoup-client/types';
 // import { RtpCapabilities } from 'mediasoup-client/lib/types';
 import "./ChessGame.css";
 
-const socket = io("http://localhost:8269", {
+const socket = io("https://chessvid-backend.onrender.com",{                 //"http://localhost:8269", {
   transports: ["websocket"],
   autoConnect: true,
 });

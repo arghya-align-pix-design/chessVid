@@ -3,7 +3,7 @@
     "noEmit": false,
     "allowImportingTsExtensions": true,
     "declaration": true,
-    //"emitDeclarationOnly": true,
+    "emitDeclarationOnly": false,
     "composite": true,
     //"allowImportingTsExtensions": true,
     //"noEmit": true,

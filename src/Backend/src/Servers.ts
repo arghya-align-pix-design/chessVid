@@ -11,6 +11,9 @@ import type {Producer} from './types/mediasoup';
 import * as mediasoup from "mediasoup";
 
 
+
+
+
 let isMediasoupReady = false;
 
 // Keep this outside of socket handlers, globally scoped in the file:
@@ -131,8 +134,12 @@ app.use(cors());
 const server = http.createServer(app);
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
-  cors: { origin: "*" },
+  cors: {  origin: ["https://chessvid.onrender.com"], // or "*" for testing (not safe for production)
+  methods: ["GET", "POST"],
+  credentials: true },
 });
+
+
 
 const rooms: Record<string, Room> = {}; // Store players in rooms
 const sendTransports: Record<string, any> = {}; // key = socket.id

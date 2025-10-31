@@ -6,9 +6,6 @@ import { mediasoupConfig } from "./mediaSoupConfig";// Import your config file
 import { getRouter } from "./worker";
 import * as mediasoup from "mediasoup";
 
-// let worker: Worker;
-// let router: Router;
-//const transports = new Map<string, WebRtcTransport>();
 const transports = new Map<string, any>(); 
 
 type MyAppData = {
@@ -28,13 +25,25 @@ export const createWebRtcTransport = async (): Promise<mediasoup.types.WebRtcTra
     return transport as mediasoup.types.WebRtcTransport<MyAppData>;
 };
 
+export const connectWebRtcTransport = async (
+  transportId: string,
+  dtlsParameters: mediasoup.types.DtlsParameters
+) => {
+  const transport = transports.get(transportId);
+  if (!transport) throw new Error("Transport not found");
+
+  await transport.connect({ dtlsParameters });
+  console.log("✅ Transport connected:", transportId);
+};
+
 //WebRTC producers has been created
 export const createProducer = async (
   transport:mediasoup.types.WebRtcTransport,
-  track: MediaStreamTrack, 
+  kind:mediasoup.types.MediaKind,
+  // track: MediaStreamTrack, 
   rtpParameters: mediasoup.types.RtpParameters):Promise<mediasoup.types.Producer>=> {
   const producer = await transport.produce({
-    kind: track.kind as mediasoup.types.MediaKind,  // Explicitly cast, Audio or Video
+    kind,
     rtpParameters,  // Required for RTP transmission 
   });
   console.log("✅ Producer created");
@@ -63,4 +72,14 @@ export const createConsumer = async (
 
 export const getTransportById = (id: string): mediasoup.types.WebRtcTransport | undefined => {
   return transports.get(id)as mediasoup.types.WebRtcTransport;  // Retrieve transport by ID
+};
+
+export const closeUserTransports = (roomId: string) => {
+  for (const [id, transport] of transports.entries()) {
+    if (transport.appData.roomId === roomId) {
+      transport.close();
+      transports.delete(id);
+      console.log("🧹 Closed transport:", id);
+    }
+  }
 };

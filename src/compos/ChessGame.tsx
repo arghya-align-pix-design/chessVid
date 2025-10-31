@@ -5,11 +5,9 @@ import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { Device, types } from "mediasoup-client";
 import type { RtpCapabilities } from 'mediasoup-client/types';
-
-// import { RtpCapabilities } from 'mediasoup-client/lib/types';
 import "./ChessGame.css";
 
-const socket = io("https://chessvid-backend.onrender.com",{                 //"http://localhost:8269", {
+const socket = io("http://localhost:8269",{//"http://localhost:8269",https://chessvid-backend.onrender.com {
   transports: ["websocket"],
   autoConnect: true,
 });
@@ -24,6 +22,7 @@ type TransportOptions = {
   iceParameters: types.IceParameters;
   iceCandidates: types.IceCandidate[];
   dtlsParameters: types.DtlsParameters;
+  sctpParameters: types.SctpParameters
 };
 
 export interface ConsumerData {
@@ -50,6 +49,7 @@ const ChessGame = () => {
   const producerIdsRef = useRef<{ video?: string; audio?: string }>({});
   const isTransportCreatedRef = useRef(false);
 
+
   // Define a ref or state to hold producers
   const producersRef = useRef<{
     video?: types.Producer;
@@ -65,17 +65,7 @@ const ChessGame = () => {
   );
   const { roomId } = useParams(); // Get room ID from URL
   const [game, setGame] = useState(new Chess());
-  //const [opponentJoined, setOpponentJoined] = useState(false);
-  //const [routerRtpCapabilities, setRouterRtpCapabilities] =
-    //useState<RtpCapabilities | null>(null); // Set state for routerRtpCapabilities
-  //const [pendingTransportOptions, setPendingTransportOptions] =
-   // useState<TransportOptions | null>(null);
-
-  //let transportConnected = false;
-  //let audioProduced = false;
-
-  //let rcvtransport:Transport;
-
+  
   useEffect(() => {
     if (!roomId) return;
 
@@ -90,7 +80,6 @@ const ChessGame = () => {
     // Receive assigned color
     socket.on("colorAssigned", (color: "white" | "black") => {
       console.log("Assigned color:", color); // <-- log
-
       setPlayerColor(color);
     });
 
@@ -101,14 +90,11 @@ const ChessGame = () => {
     });
 
     console.log("rtcCaps emission went off NOW");
-
-    //request for rtpCapabilities
-
     let rtpsSent = false;
-
+    //request for rtpCapabilities
     socket.emit("send-rtp-capabilities", socket.id);
 
-    //receiving rtp-capabilities
+    //receivED rtp-capabilities
     socket.on("sent-rtp", async (rtpCaps) => {
       if (rtpsSent) {
         return;
@@ -122,7 +108,17 @@ const ChessGame = () => {
       console.log("✅ Device loaded");
       rtpsSent = true;
 
-      
+      if (device.canProduce("video"))
+      {
+        // Do getUserMedia() and produce video.
+        console.log("VIDEO  CAN BE PRODUCED");
+      }
+
+      if (device.canProduce("audio"))
+      {
+        // Do getUserMedia() and produce video.
+        console.log("AUDIO  CAN BE PRODUCED");
+      }
     });
 
     socket.on("both-players-ready", async () => {
@@ -139,91 +135,78 @@ const ChessGame = () => {
 
     //transport created and received
     let TransCreated = false;
-    let revCreated = false;
     let vProd = false;
     let aProd = false;
 
+    //Send Transport emission mechanism
     socket.on("transport-created", async (transportOptions) => {
-      if (TransCreated) {
-        return;
+      //Avoid multiple creations from multiple emissions
+      if (!TransCreated) {
+        if (isTransportCreatedRef.current) {
+          console.warn("Transport already created, skipping duplicate setup.");
+          return;
+        }
+        console.log("🟢 Transport options received:", transportOptions);
+        if (TransCreated) {
+          console.log("Transport aalreaady created");
+          return;
+        }
+
+        const transport = device.createSendTransport({
+          id: transportOptions.id,
+          iceParameters: transportOptions.iceParameters,
+          iceCandidates: transportOptions.iceCandidates,
+          dtlsParameters: transportOptions.dtlsParameters,
+          sctpParameters:  transportOptions.sctpParameters
+        });
+
+        //log created sendtransport
+        console.log("sending Transport received is:",transport); //transport
+
+        // Optional: Store or use the sendtransport
+        sendTransportRef.current = transport;
+        TransCreated = true;
+        socket.emit("create-recv-transport");
       }
+    });
 
-      if (isTransportCreatedRef.current) {
-        console.warn("Transport already created, skipping duplicate setup.");
-        return;
+
+    let Recv_Transport_isCreated=false;
+
+    socket.on("create-recv-transport-response", async (options: TransportOptions) => {
+      
+      //avoid multiple emission lead to multiple creations
+      if(!Recv_Transport_isCreated){
+        
+        console.log("🟢 Receive transport options received:", options);
+        if (!options || !options.id) {
+          console.error("❌ Invalid transport options");
+          return;
+        }
+
+        const recvTransport = device.createRecvTransport({
+          id: options.id,
+          iceParameters: options.iceParameters,
+          iceCandidates: options.iceCandidates,
+          dtlsParameters: options.dtlsParameters,
+          sctpParameters: options.sctpParameters,
+        });
+
+        console.log("✅ RecvTransport created:", recvTransport.id);
+        recvTransRef.current = recvTransport;
+        Recv_Transport_isCreated=true;
+
       }
-
-      console.log("🟢 Transport options received:", transportOptions);
-
-      if (TransCreated) {
-        console.log("Transport aalreaady created");
-        return;
-      }
-
-      const transport = device.createSendTransport({
-        id: transportOptions.id,
-        iceParameters: transportOptions.iceParameters,
-        iceCandidates: transportOptions.iceCandidates,
-        dtlsParameters: transportOptions.dtlsParameters,
-      });
-
-      //log created sendtransport
-      console.log("sending Transport received is:"); //transport
-
-      // Optional: Store or use the sendtransport
-      sendTransportRef.current = transport;
-      TransCreated = true;
-
-      //creating receiving transport from here to avoid any racing
-      const recvOptions: TransportOptions = await new Promise((resolve) => {
-        //emit server to create the receive transport
-        socket.emit(
-          "create-recv-transport",
-          null,
-          async (options: TransportOptions) => {
-            console.log("🟢 Receive transport options received:", options);
-            resolve(options);
-          }
-        );
-      });
-
-      console.log("Receiving Transport options got:", recvOptions);
-
-      if (revCreated) {
-        return;
-      }
-
-      //Creating RecvTransport
-      const recvTransport = device.createRecvTransport({
-        id: recvOptions.id,
-        iceParameters: recvOptions.iceParameters,
-        iceCandidates: recvOptions.iceCandidates,
-        dtlsParameters: recvOptions.dtlsParameters,
-        //sctpParameters
-      });
-      console.log("RecvTransport created ahhaha:", recvTransRef);
-      //Transport for receiving obtained and stored
-      recvTransRef.current = recvTransport;
-      revCreated = true;
-
-      // Handle connect and produce events
-      transport.on("connect", async ({ dtlsParameters }, callback) => {
+      
+       // Handle connect and produce events
+      if(sendTransportRef.current){
+        sendTransportRef.current.on("connect", async ({ dtlsParameters }, callback) => {
         //, errback
         socket.emit("connect-transport", { dtlsParameters }, callback);
         console.log("send Transport has been connected");
       });
 
-      //connecting receiving transport
-      recvTransport.on("connect", async ({ dtlsParameters }, callback) => {
-        //, errback
-        console.log("receive transport connect event ll be emitted now...");
-        socket.emit("connect-recv-transport", { dtlsParameters }, callback);
-        console.log("Receiving transport has being connected");
-      });
-
-      //if(!aProd && !vProd){
-      transport.on("produce", async ({ kind, rtpParameters }, callback) => {
-        //, errback
+       sendTransportRef.current.on("produce", async ({ kind, rtpParameters }, callback) => {
         socket.emit(
           "produce",
           {
@@ -239,11 +222,19 @@ const ChessGame = () => {
 
         console.log("send Transport started production");
       });
-      //}
+      }
 
-      //window.sendTransport = transport; // or in your ref/state
+      //connecting receiving transport
+      if(recvTransRef.current){
+        recvTransRef.current.on("connect", async ({ dtlsParameters }, callback) => {
+          console.log("receive transport connect event ll be emitted now...");
+          socket.emit("connect-recv-transport", { dtlsParameters }, callback);
+          console.log("Receiving transport has being connected");
+        });
+      }
+
       // 🔥🔥🔥 MUST DO THIS TO TRIGGER THE "produce" EVENT 🔥🔥🔥
-      const stream = await navigator.mediaDevices.getUserMedia({
+       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: true,
       });
@@ -252,10 +243,22 @@ const ChessGame = () => {
       const videoTrack = stream.getVideoTracks()[0];
       const audioTrack = stream.getAudioTracks()[0];
 
-      //producerIdsRef
       // This triggers the `transport.on("produce")` above ⬆️
-      if (!producersRef.current.video && videoTrack && !vProd) {
-        const videoProducer = await transport.produce({ track: videoTrack });
+      if (!producersRef.current.video && videoTrack && !vProd && sendTransportRef.current) {
+        const videoProducer = await sendTransportRef.current.produce({
+          track: videoTrack,
+          encodings   :
+          [
+            { maxBitrate: 100000 },
+            { maxBitrate: 300000 },
+            { maxBitrate: 900000 }
+          ],
+          codecOptions :
+          {
+            videoGoogleStartBitrate : 1000
+          }
+        });
+
         producerIdsRef.current.video = videoProducer.id;
         producersRef.current.video = videoProducer;
         vProd = true;
@@ -263,8 +266,11 @@ const ChessGame = () => {
         console.log("🎥 Video Producer ID:", videoProducer.id);
       }
 
-      if (!producersRef.current.audio && audioTrack && !aProd) {
-        const audioProducer = await transport.produce({ track: audioTrack });
+       if (!producersRef.current.audio && audioTrack && !aProd && sendTransportRef.current) {
+        const audioProducer = await sendTransportRef.current.produce({ 
+          track: audioTrack,
+        });
+        
         producerIdsRef.current.audio = audioProducer.id;
         producersRef.current.audio = audioProducer;
         aProd = true;
@@ -283,6 +289,8 @@ const ChessGame = () => {
       isTransportCreatedRef.current = true;
     });
 
+
+    });
     //catching opponent producers
     socket.on("new-producer", ({ producerId, kind, socketId }) => {
       console.log("New producer received:", producerId, kind, "from", socketId);
@@ -478,20 +486,6 @@ const ChessGame = () => {
           }
         );
     });
-    //Emitting to order server to create respective consumer after listening
-    //both players ready or not
-      
-
-//     socket.on("new-producer", async ({ producerId }) => {
-//   const consumerData = await socket.emit("consume", { producerId });
-//   const transport= recvTransRef.current;
-//   const consumer = await transport.consume(consumerData);
-//   await consumer.resume();
-
-//   const stream = new MediaStream([consumer.track]);
-//   opponentVideoRef.current.srcObject = stream;
-//   opponentVideoRef.current.play();
-// });
 
     return () => {
       socket.off("joinRoom"); //valid

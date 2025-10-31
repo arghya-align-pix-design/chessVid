@@ -98,33 +98,15 @@ interface ClientToServerEvents {
     },
     callback: (response: { id: string, kind:"audio"|"video" }) => void
   ) => void;
-  //"ready-to-consume":(params: { roomId: string;}) => void;
-  // "consume":(params: { rtpCapabilities:RtpCapabilities, roomId:string, consumerId:string}, //kind:"audio"|"video",
-  //   callback:(consumers:ConsumerData[]) => void)=>void; 
-  //"resume-consumer":(params:{consumerId: string, kind:"audio"|"video"})=>void;
 }
 
-// Define the expected types for the consume handler parameters
-// interface ConsumeParams {
-//   producerId: string;
-//   kind: "audio" | "video";
-//   roomId: string;
-//   rtpCapss:RtpCapabilities;
-// }
-
-// Define the expected type for the callback to be called after consuming
-// type ConsumeCallback = (params: {
-//   id: string;
-//     producerId: string;
-//     kind:"audio" | "video";
-//     rtpParameters:RtpParameters;
-// }) => void;
 
 type TransportOptions = {
   id: string;
   iceParameters: any;
   iceCandidates: any;
   dtlsParameters: any;
+  sctpParameters: any
 };
 
 
@@ -134,7 +116,7 @@ app.use(cors());
 const server = http.createServer(app);
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
-  cors: {  origin: ["https://chessvid.onrender.com"], // or "*" for testing (not safe for production)
+  cors: {  origin: ["*"],// ["https://chessvid.onrender.com"], // or "*" for testing (not safe for production)
   methods: ["GET", "POST"],
   credentials: true },
 });
@@ -147,18 +129,9 @@ const  recvTransports: Record<string, any> = {};
 const producers: Record<string, { audio?: Producer, video?: Producer }> = {};
 const roomToSockets = new Map<string, Set<string>>(); // you probably have something like this
 const socketToRoom = new Map<string, string>();
-//const socketIdToRecvTransport = new Map<string, WebRtcTransport>();
 const socketIdToRtpCapabilities = new Map<string, RtpCapabilities>();
-//const pendingProducers: Record<string, any[]> = {}; // socketId => producers[]
-//const readyToConsumeSockets = new Set<string>();
-//const consumers: { [socketId: string]: mediasoupTypes.Consumer[] } = {};
-//const consumers: Record<string, { audio?: Consumer; video?:Consumer }> = {};
-//let videoProducer:Producer;
-//let audioProducer:Producer;
 
-//const [rtpCaps,setRtpCaps]=useState<RtpCapabilities>();
 let RTPSS:RtpCapabilities;
-//const RTPSS= useRef<RtpCapabilities>(null);
 
 io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>) => {
   console.log("🔌 New socket connected:", socket.id);
@@ -230,9 +203,8 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
   });
 
 
-
+  //RECEIVED SIGNAL FOR  RTP CAPABILITIES
   socket.on("send-rtp-capabilities", (id) => {
-
     if (socket.data.rtpSent) return;
       
     if (!isMediasoupReady) {
@@ -241,42 +213,52 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     }
 
     console.log("rtp request JUST RECEIVED");
+    //EMITTING RTP CAPABILITIES SIGNAL AND DATA
     socket.emit("sent-rtp", router.rtpCapabilities as any);
     socket.data.rtpSent = true; 
+    
     const rtpCaps = router.rtpCapabilities;
     RTPSS=rtpCaps as RtpCapabilities;
     socketIdToRtpCapabilities.set(id,RTPSS);
     console.log("rtp caps sent alreadyyy");
   });
 
-  socket.on("create-transport", async()=>{
-    try{
-    const transport = await createWebRtcTransport();
-    sendTransports[socket.id] = transport;
+  socket.on("create-transport", async()=>
+  {
+    let sTrans=false;
 
-    console.log("New Transport created: ");//,transport
+    if(!sTrans){
+      try{
+        const transport = await createWebRtcTransport();
+        sendTransports[socket.id] = transport;
 
-    // Send transport parameters to frontend
-    if(transport)
-    socket.emit("transport-created",{
-        id: transport.id,
-        iceParameters: transport.iceParameters,
-        iceCandidates: transport.iceCandidates,
-        dtlsParameters: transport.dtlsParameters,
-    });
-    } catch (err) {
-    console.error("Transport creation failed", err);
-    //callback({ error: err.message });
+        console.log("Send Transport created for: ",socket.id);//,transport
+        sTrans=true;
+      // Send transport parameters to frontend
+        if(transport)
+          socket.emit("transport-created",{
+            id: transport.id,
+            iceParameters: transport.iceParameters,
+            iceCandidates: transport.iceCandidates,
+            dtlsParameters: transport.dtlsParameters,
+            sctpParameters: transport.sctpParameters,
+          });
+      } catch (err) {
+        console.error("Transport creation failed for:",socket.id , err);
+      //callback({ error: err.message });
+      }
     }
-
   });
 
   // Backend - Handle creating the receive transport
   socket.on("create-recv-transport",async(//data: any, // or just `null`, but you must accept it because the emit sends two arguments
     callback: (transportOptions: TransportOptions) => void) =>{
-    try {
-      const transport=await createWebRtcTransport();
+    let rTrans=false;
+    if(!rTrans){
 
+      try {
+      const transport=await createWebRtcTransport();
+      rTrans=true;
       console.log("✅ Receive transport created for", socket.id);
       recvTransports[socket.id]=transport;
       console.log("stored recvTransport on BE: ", recvTransports[socket.id]);
@@ -288,9 +270,10 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
           iceParameters: transport.iceParameters,
           iceCandidates: transport.iceCandidates,
           dtlsParameters: transport.dtlsParameters,
-      });
+          sctpParameters: transport.sctpParameters,
+        });
       else{
-        console.log ("recv transport failed");
+        console.log ("recv transport failed for ",socket.id);
         return;
       }
 
@@ -299,39 +282,11 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
       //to retrieve let fetch= recvTransport[socket.id]
 
   } catch (error) {
-      console.error("❌ Error creating receive transport", error);
+      console.error("❌ Error creating receive transport for:", socket.id, error);
       socket.emit("error", { message: "Failed to create receive transport" });
     }
+  }
 });
-
-  // socket.on("resume-consumer",async ({consumerId,kind}:{consumerId:string, kind: "audio"|"video"})=>{
-  //     const consumerContainer= consumers[socket.id];
-
-  //     if (!consumerContainer) {
-  //       console.warn(`⚠️ No consumers found for socket ${socket.id}`);
-  //       return;
-  //     }
-
-  //     const consumer = kind === "video" ? consumerContainer.video : consumerContainer.audio;
-
-  //     if (!consumer) {
-  //       console.warn(`⚠️ No ${kind} consumer found for socket ${socket.id}`);
-  //       return;
-  //     }
-
-  //     if (consumer.id !== consumerId) {
-  //       console.warn(`❗Consumer ID mismatch for ${kind}: expected ${consumer.id}, got ${consumerId}`);
-  //       return;
-  //     }
-
-  //     try {
-  //       //await consumer.resume();
-  //       console.log(`✅ ${kind.toUpperCase()} consumer resumed for socket ${socket.id}`);
-  //     } catch (err) {
-  //       console.error(`❌ Failed to resume ${kind} consumer for socket ${socket.id}`, err);
-  //     }
-  // })
-
   
   socket.on("connect-transport", async ({ dtlsParameters }, callback) => {
   

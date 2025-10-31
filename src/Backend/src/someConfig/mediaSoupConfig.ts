@@ -31,11 +31,6 @@ export const mediasoupConfig = {
         clockRate: 90000,
         parameters: { "packetization-mode": 1 },
       },
-      // {
-      //   kind: "video",
-      //   mimeType: "video/av1",
-      //   clockRate: 90000,
-      // },
     ],
   },
 

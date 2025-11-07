@@ -4,6 +4,7 @@ import {mediasoupConfig} from "./mediaSoupConfig";
 let worker: mediaSoup.types.Worker;
 let router: mediaSoup.types.Router;
 
+
 export const initializeWorker = async () => {
   worker = await mediaSoup.createWorker(mediasoupConfig.worker);
   console.log("✅ Mediasoup Worker created");

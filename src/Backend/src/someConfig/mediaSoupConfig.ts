@@ -17,25 +17,44 @@ export const mediasoupConfig = {
       {
         kind: "audio",
         mimeType: "audio/opus",
+        //preferredPayloadType: 100,
         clockRate: 48000,
         channels: 2,
+        parameters: {
+          "sprop-stereo": 1,
+        },
       },
       {
         kind: "video",
         mimeType: "video/vp8",
+        //preferredPayloadType: 101,
         clockRate: 90000,
       },
       {
         kind: "video",
-        mimeType: "video/h264",
+        mimeType: "video/VP9",
+        //preferredPayloadType: 102,
         clockRate: 90000,
-        parameters: { "packetization-mode": 1 },
+        parameters: {
+          "profile-id": 2,
+        },
+      },
+      {
+        kind: "video",
+        mimeType: "video/h264",
+        // preferredPayloadType: 103,
+        clockRate: 90000,
+        parameters: {
+          "packetization-mode": 1,
+          "profile-level-id": "42e01f",
+          "level-asymmetry-allowed": 1
+  }
       },
     ],
   },
 
   webRtcTransport: <WebRtcTransportOptions>{
-    listenIps: [{ 
+    listenIps: [{
       ip: "0.0.0.0",
       //announcedIp: " 192.168.29.111", // <- IMPORTANT! Replace with your actual public IP
       //protocol: "udp", // You can also use 'udp/tcp' if needed

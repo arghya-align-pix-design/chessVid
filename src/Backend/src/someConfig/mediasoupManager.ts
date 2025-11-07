@@ -40,22 +40,23 @@ export const connectWebRtcTransport = async (
 export const createProducer = async (
   transport:mediasoup.types.WebRtcTransport,
   kind:mediasoup.types.MediaKind,
-  // track: MediaStreamTrack, 
+  // track: MediaStreamTrack,
   rtpParameters: mediasoup.types.RtpParameters):Promise<mediasoup.types.Producer>=> {
   const producer = await transport.produce({
     kind,
-    rtpParameters,  // Required for RTP transmission 
+    rtpParameters,  // Required for RTP transmission
   });
-  console.log("✅ Producer created");
+  console.log("✅ Producer created of kind:",kind," from mediasoupManager");
   return producer;
 };
 
 //WebRTC consumer has been created
-export const createConsumer = async (
+export const createConsumer = async(
   transport:mediasoup.types.WebRtcTransport,
   producerId:string,
   rtpCapabilities:mediasoup.types.RtpCapabilities
-):Promise<mediasoup.types.Consumer> => {
+
+  ):Promise<mediasoup.types.Consumer> => {
   const router = getRouter();
   if (!router.canConsume({ producerId, rtpCapabilities })) {
     throw new Error("Cannot consume this producer");
@@ -65,7 +66,7 @@ export const createConsumer = async (
     rtpCapabilities,
     paused:true
   });
-  console.log("✅ Consumer created");
+  console.log("✅ Consumer created of from mediasoupManager",);
   return consumer;
 };
 

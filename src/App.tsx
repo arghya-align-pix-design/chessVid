@@ -3,9 +3,9 @@
 //import viteLogo from '/vite.svg'
 import './App.css'
 import { BrowserRouter as Router, Routes, Route,} from "react-router-dom";
-import ChessGame from "./compos/ChessGame";
+//import ChessGame from "./compos/ChessGame";
 import { Home } from "./Home";
-
+import ChessGame from "./compos/ChessGame";
 
 
 const App = () => {

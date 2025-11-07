@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef,useState } from "react";
 import ChessManager from "./ChessManager";
 import { Chess } from "chess.js";
 import { useParams } from "react-router-dom";
@@ -34,10 +34,11 @@ export interface ConsumerData {
 
 let RoomId: string;
 // Global or module-level
-const opponentProducers: Map<string, { producerId: string; kind: string; socketId: string }> = new Map();
+//const opponentProducers: Map<string, { producerId: string; kind: string; socketId: string }> = new Map();
 
 
-const ChessGame = () => {
+const ChessGame = () =>{
+
   const localStreamRef = useRef<MediaStream | null>(null);
   const myVideoRef = useRef<HTMLVideoElement | null>(null);
   const opponentVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -55,20 +56,13 @@ const ChessGame = () => {
     video?: types.Producer;
     audio?: types.Producer;
   }>({});
-  const consumerRef = useRef<{
-    video?: types.Consumer;
-    audio?: types.Consumer;
-  }>({});
 
-  const [playerColor, setPlayerColor] = useState<"white" | "black" | null>(
-    null
-  );
+  const [playerColor, setPlayerColor] = useState<"white" | "black" | null>(null);
   const { roomId } = useParams(); // Get room ID from URL
   const [game, setGame] = useState(new Chess());
   
   useEffect(() => {
     if (!roomId) return;
-
     console.log("Joining room: from frontend emitted", roomId); // <-- log
 
     // Join the room //this triggers mediasoup to make a transport as well
@@ -86,7 +80,6 @@ const ChessGame = () => {
     // Detect when the opponent joins
     socket.on("opponentJoined", () => {
       console.log("Opponent has joined!"); // <-- log
-      //setOpponentJoined(true);
     });
 
     console.log("rtcCaps emission went off NOW");
@@ -101,22 +94,18 @@ const ChessGame = () => {
       }
 
       console.log("backend sent RTPCapabilities");
-      console.log(rtpCaps);
+      console.log("rtpCaps are these:",rtpCaps);
       Rtpss.current = rtpCaps; //stored Rtp Capabilities
       //device needs to be loaded
       await device.load({ routerRtpCapabilities: rtpCaps });
       console.log("✅ Device loaded");
       rtpsSent = true;
-
       if (device.canProduce("video"))
-      {
-        // Do getUserMedia() and produce video.
+      {// Do getUserMedia() and produce video.
         console.log("VIDEO  CAN BE PRODUCED");
       }
-
       if (device.canProduce("audio"))
-      {
-        // Do getUserMedia() and produce video.
+      {// Do getUserMedia() and produce video.
         console.log("AUDIO  CAN BE PRODUCED");
       }
     });
@@ -126,7 +115,7 @@ const ChessGame = () => {
       setTimeout(() => {
 
       //create Transport
-      socket.emit("create-transport");
+      socket.emit("create-send-transport");
 
       }, 2000);
     });
@@ -135,9 +124,6 @@ const ChessGame = () => {
 
     //transport created and received
     let TransCreated = false;
-    let vProd = false;
-    let aProd = false;
-
     //Send Transport emission mechanism
     socket.on("transport-created", async (transportOptions) => {
       //Avoid multiple creations from multiple emissions
@@ -162,9 +148,42 @@ const ChessGame = () => {
 
         //log created sendtransport
         console.log("sending Transport received is:",transport); //transport
-
         // Optional: Store or use the sendtransport
         sendTransportRef.current = transport;
+
+        // Handle connect and produce events
+        if(sendTransportRef.current){
+          sendTransportRef.current.on("connect", async ({ dtlsParameters },
+          callback) => {
+            socket.emit("connect-transport", { dtlsParameters }, callback);
+            console.log("send Transport has been connected");
+          });
+
+          sendTransportRef.current.on("produce", async ({ kind, rtpParameters },
+          callback,errback) => 
+          {
+            const { id } = sendTransportRef.current!;
+            try{
+              socket.emit("create-producer",
+              {
+                transportId: id ,
+                kind,
+                rtpParameters,
+                socketId: mySocketRef.current, // Pass the socketId
+                roomId: RoomId, // Pass the roomId
+              },
+              ({ id }: { id: string, kind:"audio"|"video" }) => {
+            callback({ id });
+          });
+          console.log("send Transport started production");
+        }
+        catch (error:any)
+        {
+          // Tell the transport that something was wrong.
+          errback(error);
+        }
+      });
+      }
         TransCreated = true;
         socket.emit("create-recv-transport");
       }
@@ -172,9 +191,10 @@ const ChessGame = () => {
 
 
     let Recv_Transport_isCreated=false;
+    //let vProd = false;
+    let aProd = false;
 
-    socket.on("create-recv-transport-response", async (options: TransportOptions) => {
-      
+    socket.on("create-recv-transport-response", async (options: TransportOptions) => { 
       //avoid multiple emission lead to multiple creations
       if(!Recv_Transport_isCreated){
         
@@ -195,33 +215,6 @@ const ChessGame = () => {
         console.log("✅ RecvTransport created:", recvTransport.id);
         recvTransRef.current = recvTransport;
         Recv_Transport_isCreated=true;
-
-      }
-      
-       // Handle connect and produce events
-      if(sendTransportRef.current){
-        sendTransportRef.current.on("connect", async ({ dtlsParameters }, callback) => {
-        //, errback
-        socket.emit("connect-transport", { dtlsParameters }, callback);
-        console.log("send Transport has been connected");
-      });
-
-       sendTransportRef.current.on("produce", async ({ kind, rtpParameters }, callback) => {
-        socket.emit(
-          "produce",
-          {
-            kind,
-            rtpParameters,
-            socketId: mySocketRef.current, // Pass the socketId
-            roomId: RoomId, // Pass the roomId
-          },
-          ({ id }: { id: string, kind:"audio"|"video" }) => {  //,kind
-            callback({ id });
-          }
-        );
-
-        console.log("send Transport started production");
-      });
       }
 
       //connecting receiving transport
@@ -231,262 +224,137 @@ const ChessGame = () => {
           socket.emit("connect-recv-transport", { dtlsParameters }, callback);
           console.log("Receiving transport has being connected");
         });
+
+        // recvTransRef.current.on( "consume", async(data) =>{
+        //   const consumer = await transport?.consume(
+        //   {
+        //     id            : data.id,
+        //     producerId    : data.producerId,
+        //     kind          : data.kind,
+        //     rtpParameters : data.rtpParameters
+        //   });
+        // })
       }
 
       // 🔥🔥🔥 MUST DO THIS TO TRIGGER THE "produce" EVENT 🔥🔥🔥
+      //This is produce method, not PRODUCER
+      if (!localStreamRef.current) {
        const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: true,
       });
-      localStreamRef.current = stream;
-
-      const videoTrack = stream.getVideoTracks()[0];
-      const audioTrack = stream.getAudioTracks()[0];
-
-      // This triggers the `transport.on("produce")` above ⬆️
-      if (!producersRef.current.video && videoTrack && !vProd && sendTransportRef.current) {
-        const videoProducer = await sendTransportRef.current.produce({
-          track: videoTrack,
-          encodings   :
-          [
-            { maxBitrate: 100000 },
-            { maxBitrate: 300000 },
-            { maxBitrate: 900000 }
-          ],
-          codecOptions :
-          {
-            videoGoogleStartBitrate : 1000
-          }
-        });
-
-        producerIdsRef.current.video = videoProducer.id;
-        producersRef.current.video = videoProducer;
-        vProd = true;
-        await videoProducer.resume();
-        console.log("🎥 Video Producer ID:", videoProducer.id);
+        localStreamRef.current = stream;
       }
+    const stream=localStreamRef.current;
+    //const videoTrack = stream.getVideoTracks()[0];
+    const audioTrack = stream.getAudioTracks()[0];
 
-       if (!producersRef.current.audio && audioTrack && !aProd && sendTransportRef.current) {
-        const audioProducer = await sendTransportRef.current.produce({ 
-          track: audioTrack,
+    //This triggers the `transport.on("produce")` above ⬆️
+    // if (sendTransportRef.current) {
+    //   const clonedVideoTrack = videoTrack.clone();
+    //   const transport=sendTransportRef.current;
+
+    // console.log("Transport fully connected, safe to produce now");
+
+    //       const videoProducer = await transport.produce({
+    //         track: videoTrack,
+    //       });
+        //await videoProducer.resume();
+        //console.log("🎥 Video Producer ID:", videoProducer.id);
+      //}
+      //console.log("maybe vid prod is kipped")
+
+      if (!producersRef.current.audio && audioTrack && !aProd && sendTransportRef.current) {
+      const clonedAudioTrack = audioTrack.clone();
+      const transport=sendTransportRef.current;
+      const audioProducer = await transport.produce({
+          track: clonedAudioTrack,
         });
         
         producerIdsRef.current.audio = audioProducer.id;
         producersRef.current.audio = audioProducer;
         aProd = true;
         console.log("🎤 Audio Producer ID:", audioProducer.id);
+        console.log("Audio Ref",producersRef.current);
       }
 
-      console.log("Video Producer ID:", producerIdsRef.current.video);
+      //console.log("Video Producer ID:", producerIdsRef.current.video);
       console.log("Audio Producer ID:", producerIdsRef.current.audio);
 
-      // (Optional) You can show your video:
-      if (myVideoRef.current) {
-        myVideoRef.current.srcObject = stream;
-      }
+      const VidId=producerIdsRef.current.video;
+      const AudId=producerIdsRef.current.audio;
+      const rtpCapabilities=Rtpss.current;
+      //const transport=sendTransportRef.current;
+      console.log(rtpCapabilities);
 
+      //checking if producer is consumable or not
+      socket.emit("producer-check",{
+        VidId,AudId, rtpCapabilities,
+        //transportId:sendTransportRef.current?.id
+      });
+
+      // (Optional) You can show your video:
+      // if (myVideoRef.current  && stream) {
+      //   //setTimeout(() => {
+      //     myVideoRef.current!.srcObject = stream;
+      //     myVideoRef.current!.autoplay=true;
+      //     myVideoRef.current!.muted = true;
+      //     myVideoRef.current!.playsInline = true;
+      // }
       // ✅ Mark that the transport has been created and setup
       isTransportCreatedRef.current = true;
     });
 
+    const recvTransport=recvTransRef.current;
+    
 
+    socket.on("consumer-made", async (serverConsumerData) => {
+    console.log("📦 Received consumer info from backend:", serverConsumerData);
+
+    if (!recvTransRef.current) {
+      console.error("❌ Recv transport not ready!");
+      return;
+    }
+
+    // serverConsumerData is the mediasoup server consumer object
+    const {
+      id,
+      producerId,
+      kind,
+      rtpParameters,
+    } = serverConsumerData;
+    
+
+    // 4️⃣ Create the corresponding client-side consumer
+    try {
+      const audioConsumer = await recvTransport!.consume({
+        id,
+        producerId,
+        kind,
+        rtpParameters,
+      });
+
+      console.log("🎧 Audio consumer created on client:", audioConsumer);
+
+      // 5️⃣ Attach consumer track to an <audio> element
+      const stream = new MediaStream();
+      stream.addTrack(audioConsumer.track);
+
+      const audioEl = document.createElement("audio");
+      audioEl.srcObject = stream;
+      audioEl.autoplay = true;
+      audioEl.controls = false;
+      document.body.appendChild(audioEl);
+
+      console.log("🔊 Audio playback started");
+
+      // 6️⃣ Ask backend to resume consumer (unpause)
+      socket.emit("resume-consumer", { consumerId: audioConsumer.id });
+      console.log("emitted to resume the audio now")
+    } catch (err) {
+      console.error("❌ Error consuming from recv transport:", err);
+    }
     });
-    //catching opponent producers
-    socket.on("new-producer", ({ producerId, kind, socketId }) => {
-      console.log("New producer received:", producerId, kind, "from", socketId);
-
-      // Store in the map
-      opponentProducers.set(producerId, { producerId, kind, socketId });
-
-      // Or, if using object
-      // opponentProducersBySocket[socketId] = { producerId, kind };
-
-      // Optionally auto-consume here
-      // consumeProducer(producerId);
-
-      let vPlayer=false;
-      //let aPlayer=false;
-      let vidSet=false;
-
-      socket.emit(
-          "consume",
-          {
-            producerId,
-            kind,
-            rtpCapabilities: Rtpss.current,
-            roomId: RoomId,
-            //consumerId: mySocketRef.current, // who wants to consume
-          },async (consumers: ConsumerData[]) => {
-            try {
-              for (const consumerData of consumers) {
-                const { id, producerId, kind, rtpParameters } = consumerData;
-
-                const recvTransport = recvTransRef.current;
-                //const recvTransport=recvTransRef.current;
-              
-                if (recvTransport) {
-                  const consumer = await recvTransport.consume({
-                    id,
-                    producerId,
-                    kind,
-                    rtpParameters,
-                    //paused: true  // Start paused!
-                  });
-
-                   //await consumer.pause();
-
-                  // Save or attach consumer to your refs
-                  if (kind === "video") {
-                    if(vPlayer){console.log("videoStream added already");
-                      return;
-                    }
-                    consumerRef.current.video = consumer;
-
-                    const stream = new MediaStream();
-
-                     stream.addTrack(consumer.track);
-                   if(!vidSet){
-                   if (kind === "video" && opponentVideoRef.current) {
-                    // console.log("🏷️ stream tracks: ", stream.getTracks());
-                    // opponentVideoRef.current.srcObject =new MediaStream([consumer.track]); //stream;
-                    // console.log("Creating video from consumer   --:", consumer.track);
-
-                    // await consumer.resume();
-                    // //opponentVideoRef.current.play().catch(console.error); // force play
-                    // setTimeout(() => {
-                    //   opponentVideoRef.current?.play().catch((err) => {
-                    //   console.error("❌ Error playing video:", err);
-                    //   });
-                    // }, 3000);
-                    // opponentVideoRef.current.playsInline = true;
-                    // //opponentVideoRef.current.style.width = "200px"; // customize as needed
-                    // opponentVideoRef.current.autoplay = true;
-                    // opponentVideoRef.current.style.border = "2px solid limegreen";
-                    // opponentVideoRef.current.muted = false;
-
-                    // const video = document.createElement('video');
-                    // video.srcObject = stream;
-                    // video.autoplay = true;
-                    // video.playsInline = true;
-                    // video.muted = true; // Set to true if it's your own video
-                    // video.style.width = '300px';
-                    // video.style.height = '200px';
-                    // video.style.background = 'black';
-                    // video.style.border = '2px solid lime';
-                    // document.body.appendChild(video); // 🚨 Temporarily inject into body to debug
-                     vidSet=true;
-
-                    // setTimeout(() => {
-                    //   video.play().catch((err) => {
-                    //   console.error("❌ Error playing video:", err);
-                    //   });
-                    // }, 3000);
-                    
-                    // await consumer.resume();
-
-                    // console.log("✅ Video element added to DOM", video);
-
-                    //const videoTrack = consumer.track;
-
-                    // const imageCapture = new ImageCapture(videoTrack);
-
-                    // imageCapture.grabFrame()
-                    //   .then(imageBitmap => {
-                    //     console.log("Frame grabbed from track:", imageBitmap);
-                    //   })
-                    //   .catch(err => {
-                    //     console.error("Failed to grab frame:", err);
-                    //   });
-                    console.log("Track enabled:", consumer.track.enabled);
-                    console.log("Track muted:", consumer.track.muted);
-                    console.log("Track readyState:", consumer.track.readyState);
-                    vPlayer=true;
-
-                    
-
-                    console.log("we ll add track now: VIDEO");
-
-                    // Resume when frontend is ready
-                    socket.emit("resume-consumer", {
-                      consumerId: consumer.id,
-                      kind,
-                    });
-                    }
-                    }
-                  
-                  
-                  
-                  
-                  
-                  } else if (kind === "audio") {
-                    consumerRef.current.audio = consumer;
-                    //return;
-                  }
-                  console.log("consumer is created");
-
-                  // Resume when frontend is ready
-                  //await socket.emit("resume-consumer", { consumerId: consumer.id, kind });
-                  //await consumer.resume();
-                  // Attach to video/audio tag
-                  // const stream = new MediaStream();
-                  // stream.addTrack(consumer.track);
-
-                  // console.log("we ll add track now");
-
-                  // if (kind === "video" && opponentVideoRef.current) {
-                  //   console.log("🏷️ stream tracks: ", stream.getTracks());
-                  //   opponentVideoRef.current.srcObject = stream;
-                  //   opponentVideoRef.current.play().catch(console.error); // force play
-                  //   setTimeout(() => {
-                  //     opponentVideoRef.current?.play().catch((err) => {
-                  //     console.error("❌ Error playing video:", err);
-                  //     });
-                  //   }, 3000);
-                    // opponentVideoRef.current.playsInline = true;
-                    // //opponentVideoRef.current.style.width = "200px"; // customize as needed
-                    // opponentVideoRef.current.autoplay = true;
-                    // opponentVideoRef.current.style.border = "2px solid limegreen";
-                    // opponentVideoRef.current.muted = false;
-                    
-
-                    // console.log("we ll add track now: VIDEO");
-
-                    // // Resume when frontend is ready
-                    // socket.emit("resume-consumer", {
-                    //   consumerId: consumer.id,
-                    //   kind,
-                    // });
-                  // } else if (kind === "audio" && opponentAudioRef.current) {
-                  //   //const audio = new Audio();
-                  //   console.log("🏷️ stream tracks: ", stream.getTracks());
-                  //   opponentAudioRef.current!.srcObject = stream;
-                  //   opponentAudioRef.current.autoplay = true;
-                  //   opponentAudioRef.current.controls = false;
-                  //   console.log("we ll add track now:AUDIO");
-                  //  // audio.srcObject = stream;
-                    //audio.play();
-                    //console.log
-
-                    // Resume when frontend is ready
-                  //   socket.emit("resume-consumer", {
-                  //     consumerId: consumer.id,
-                  //     kind,
-                  //   });
-                  //   console.log("resume is called");
-                  // }
-
-                  //socket.emit("resume-consumer-flow",{consumerId})
-
-                  //console.log("✅ Consumer created for", kind);
-                }
-              }
-            } catch (error) {
-              console.error("❌ Error creating consumer:", error);
-            }
-          }
-        );
-    });
-
     return () => {
       socket.off("joinRoom"); //valid
       socket.off("colorAssigned");
@@ -501,7 +369,7 @@ const ChessGame = () => {
       socket.off("transport-connected");
       socket.off("roomFull");
     };
-  }, [roomId]); //[roomId]
+  },[RoomId]);//, //[roomId]); //[roomId]
 
   return (
     <div>
@@ -514,7 +382,9 @@ const ChessGame = () => {
 
       {/* Video Elements */}
       <div className="video-container">
-        <video id="my-video" ref={myVideoRef} autoPlay muted></video>{" "}
+        <video id="my-video" ref={myVideoRef}
+        style={{ width: '300px', height: '200px', backgroundColor: 'black',objectFit: "cover" }}
+         playsInline autoPlay muted ></video>{" "}
         {/* Your video */}
         <video
           id="opponent-video"

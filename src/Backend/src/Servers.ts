@@ -3,16 +3,14 @@ import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
 import { initializeWorker,getRouter } from "./someConfig/worker";
-import { createWebRtcTransport} from "./someConfig/mediasoupManager";// , createConsumer 
-import { RtpCapabilities } from "./types/RtpCaps";
+import { createWebRtcTransport,
+  createProducer,createConsumer} from "./someConfig/mediasoupManager";// , createConsumer 
+//import { RtpCapabilities } from "./types/RtpCaps";
+import type { RtpCapabilities } from "mediasoup/node/lib/types";
 //import { WebRtcTransport } from "mediasoup";///node/lib/types
 import type {Producer} from './types/mediasoup';
 //import * as mediasoupTypes from "mediasoup";///node/lib/types, RtpCapabilities RtpParameters, WebRtcTransport,, Consumer 
 import * as mediasoup from "mediasoup";
-
-
-
-
 
 let isMediasoupReady = false;
 
@@ -40,12 +38,12 @@ interface Room {
   players: Player[];
 }
 
-// type ConsumerData = {
-//   id: string;
-//   producerId: string;
-//   kind: "audio" | "video";
-//   rtpParameters: RtpParameters;
-// };
+type ConsumerData = {
+  id: string;
+  producerId: string;
+  kind: "audio" | "video";
+  rtpParameters: mediasoup.types.RtpParameters;
+};
 
 // interface ConsumeRequest {
 //   rtpCapabilities: RtpCapabilities;
@@ -58,6 +56,7 @@ interface ServerToClientEvents {
   opponentJoined: () => void;
   moveMade: (moveData: any) => void;
   roomFull: () => void;
+  "both-players-ready":(data: any) => void;
   "sent-rtp": (data: RtpCapabilities) => void; // 👈 Add this
   "transport-created": (data: any) => void;
   "error":(data: any) => void;
@@ -66,38 +65,51 @@ interface ServerToClientEvents {
   "recv-transport-created":(transportParams: any) => void;
   "recv-transport-connect-error":(data: any) => void;
   "recv-transport-connected":(data: any) => void;
-  "new-consumer": (params:any
+  "create-recv-transport-response": (data: any) => void;
+  // "new-consumer": (params:any
   //   producerId,
   //   id: consumer.id,
   //   kind: consumer.kind,
   // rtpParameters: consumer.rtpParameters,
-  )=>void;
-  "both-players-ready":(data: any) => void;
+  // )=>void;
   "new-producer": {
-    producerId: string;
+    producerId: mediasoup.types.Producer;
     kind: "audio" | "video";
   };
+  "consumer-made":(
+    audConsumer:mediasoup.types.Consumer
+  )=>void;
 }
 
 interface ClientToServerEvents { 
   joinRoom: (roomId: string) => void;
-  moveMade: (moveData: any) => void;
+  moveMade: (moveData: any) => void; 
   // connectTransport: (transportParams: any) => void; // ✅ ADD THIS LINE
   "send-rtp-capabilities":(transportParams: any) => void;
-  "create-transport":(transportParams: any) => void;
-  "new-producers": (params: { roomId: string; socketId: string; producers: any[] }) => void; 
+  "create-send-transport":(transportParams: any) => void;
   "connect-transport": (transportParams: any,callback:any ) => void; // ✅ This matches the exact event name
   "connect-recv-transport":(transportParams: any,callback:any )  => void;
   'create-recv-transport': (data: any, callback: (options: TransportOptions) => void) => void;
-  produce: (
+  "create-producer": (
     data: {
+      transportId:string,
       kind: "audio" | "video";
       rtpParameters: any;
-      senderId:string,
+      socketId:string,
       roomId:string
     },
     callback: (response: { id: string, kind:"audio"|"video" }) => void
   ) => void;
+    "producer-check":(data:
+    { VidId:string,
+      AudId:string,
+      RtpCapabilities:mediasoup.types.RtpCapabilities
+    })=>void;
+
+    "resume-consumer":(data:{
+      consumerId:mediasoup.types.Consumer,
+      kind:  "audio" | "video";
+    }) => void;
 }
 
 
@@ -126,12 +138,14 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
 const rooms: Record<string, Room> = {}; // Store players in rooms
 const sendTransports: Record<string, any> = {}; // key = socket.id
 const  recvTransports: Record<string, any> = {};
-const producers: Record<string, { audio?: Producer, video?: Producer }> = {};
+const producers: Record<string, { audio?: mediasoup.types.Producer, video?: mediasoup.types.Producer }> = {};
+const consumers:Record<string, { audio?: mediasoup.types.Consumer, video?: mediasoup.types.Consumer }> = {};;
 const roomToSockets = new Map<string, Set<string>>(); // you probably have something like this
 const socketToRoom = new Map<string, string>();
 const socketIdToRtpCapabilities = new Map<string, RtpCapabilities>();
-
 let RTPSS:RtpCapabilities;
+
+ 
 
 io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>) => {
   console.log("🔌 New socket connected:", socket.id);
@@ -142,9 +156,11 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
   socket.data.audC=false;
   socket.data.vidC=false;
 
+ 
+  //const { codecs = [] } = router.rtpCapabilities;
   //Router initiated
   const router = getRouter();
-  //const { codecs = [] } = router.rtpCapabilities;
+  
   
   socket.on("joinRoom", async (roomId: string) => {
 
@@ -213,25 +229,26 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     }
 
     console.log("rtp request JUST RECEIVED");
+    //const rtpCaps = router.rtpCapabilities;v
+    console.log("rtpCapas are:", router.rtpCapabilities);
     //EMITTING RTP CAPABILITIES SIGNAL AND DATA
-    socket.emit("sent-rtp", router.rtpCapabilities as any);
-    socket.data.rtpSent = true; 
+    socket.emit("sent-rtp", router.rtpCapabilities as RtpCapabilities);
+    socket.data.rtpSent = true;
+    //router.rtpCapabilities
     
-    const rtpCaps = router.rtpCapabilities;
-    RTPSS=rtpCaps as RtpCapabilities;
+    RTPSS=router.rtpCapabilities;// as RtpCapabilities;
     socketIdToRtpCapabilities.set(id,RTPSS);
     console.log("rtp caps sent alreadyyy");
   });
 
-  socket.on("create-transport", async()=>
+  let sTrans=false;
+  
+  socket.on("create-send-transport", async()=>
   {
-    let sTrans=false;
-
     if(!sTrans){
       try{
         const transport = await createWebRtcTransport();
         sendTransports[socket.id] = transport;
-
         console.log("Send Transport created for: ",socket.id);//,transport
         sTrans=true;
       // Send transport parameters to frontend
@@ -245,17 +262,19 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
           });
       } catch (err) {
         console.error("Transport creation failed for:",socket.id , err);
-      //callback({ error: err.message });
       }
     }
   });
 
   // Backend - Handle creating the receive transport
+  let recvTransportCreated=false;
+  let rTrans=false;
+
+  if (!recvTransportCreated) {
   socket.on("create-recv-transport",async(//data: any, // or just `null`, but you must accept it because the emit sends two arguments
     callback: (transportOptions: TransportOptions) => void) =>{
-    let rTrans=false;
+    
     if(!rTrans){
-
       try {
       const transport=await createWebRtcTransport();
       rTrans=true;
@@ -264,14 +283,17 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
       console.log("stored recvTransport on BE: ", recvTransports[socket.id]);
 
       // Send transport details back to the client
-      if(transport)
-      callback({
+      if(transport){
+        socket.emit("create-recv-transport-response",{
           id: transport.id,
           iceParameters: transport.iceParameters,
           iceCandidates: transport.iceCandidates,
           dtlsParameters: transport.dtlsParameters,
           sctpParameters: transport.sctpParameters,
         });
+
+        recvTransportCreated=true;
+      }
       else{
         console.log ("recv transport failed for ",socket.id);
         return;
@@ -286,8 +308,9 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
       socket.emit("error", { message: "Failed to create receive transport" });
     }
   }
-});
+});}
   
+  let send_connected=false;
   socket.on("connect-transport", async ({ dtlsParameters }, callback) => {
   
     //SEND TRANSPORT WAS CREATED AND TRIED TO CONNECT
@@ -303,50 +326,27 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
         return;
       }
 
-      await transport.connect({ dtlsParameters });
-
-      transport.__connected = true; // Mark as connected
-
-      console.log("✅ Transport connected for", socket.id);
-      callback(); // Tell client we're done
-    
+      if(!send_connected){
+        await transport.connect({ dtlsParameters });
+        transport.__connected = true; // Mark as connected
+        console.log("✅Send Transport connected for", socket.id);
+        send_connected=true;
+        callback(); // Tell client we're done
+        
+      }
     } catch (error) {
-        console.error("❌ Error connecting transport:", error);
-        // errback can be passed instead if needed
+        console.error("❌ Error connecting transport:",);
       }
   });
 
-
-  socket.on("connect-recv-transport", async ({ dtlsParameters }, callback) => {
-
-    const recvTransport = recvTransports[socket.id];
-
-    if (!recvTransport) {
-      console.error("❌ Receive transport not found for socket: in connect recv", socket.id);
-      return;
-    }
-
-    if (recvTransport.__connected) {
-      console.log("🔁 RecvTransport already connected, skipping...");
-      return callback(); // Still unblock frontend
-    }
-
-    try {
-      await recvTransport.connect({ dtlsParameters });
-      recvTransport.__connected = true;
-
-      console.log("✅ RecvTransport connected for", socket.id);
-      callback(); // Let frontend proceed
-
-    } catch (error) {
-
-      console.error("❌ Error connecting recvTransport:", error);
-      // You can also call `errback(error)` if the frontend uses it
+  //Creating producers
+  socket.on("create-producer", async (
+    { transportId,
+      kind,
+      rtpParameters,
+      socketId, 
+      roomId }, callback) => {//senderId,
     
-    }
-  });
-
-  socket.on("produce", async ({ kind, rtpParameters, roomId }, callback) => {//senderId,
     const transport = sendTransports[socket.id];
 
     //IF TRANSPORT ALREADY EXISTS
@@ -365,57 +365,126 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     }
 
     try {
-      
       if(socket.data.vidP && socket.data.audP)
       {
         console.log("both producers made, go back control");
         return;
       }
-
-      const producer = await transport.produce({ kind, rtpParameters });
+      console.log(rtpParameters)
+      const producer = await transport.produce({//await createProducer(
+        //transport,
+        kind,
+        rtpParameters});
       
       //producers are stored in object via socketid of user
       producers[socket.id][kind]=  producer;
 
-      // if(kind==="audio"){
-      //   audioProducer = producer;
-      //   console.log(`AUDIO Producer created: ${producer.id} for ${socket.id}  ${kind}`);
-      //   socket.data.audP=true;
-      // }else{
-      //   videoProducer=producer;
-      //   console.log(`🎥 VIDEO Producer created: ${producer.id} for ${socket.id}  ${kind}`);
-      //   socket.data.vidP=true;
-      // }
-      
       console.log(`producer for socket ${socket.id}: id is ${producer.id}`);  //${producer} 
       mediasoupProducers.set(producer.id, producer);
-        
-      // ✅ Step 1: Emit this to other players in the room
-      (socket as any).to(roomId).emit("new-producer", { 
-        producerId: producer.id,
-        kind: producer.kind,
-        socketId: socket.id 
-      });
-
-      callback({ id:producer.id,kind:producer.kind }); // Send producer ID back to client
-
+      callback({ id:producer.id,kind }); // Send producer ID back to client
     }
     catch (err) {
-
       console.error(`❌ Producer creation failed for ${socket.id}`, err);
-      
       socket.emit("error", { message: "Failed to create producer" });
-    } 
+    }
   });
 
+
+  let recv_connected=false;
+  socket.on("connect-recv-transport", async ({ dtlsParameters }, callback) => {
+    const recvTransport = recvTransports[socket.id];
+    if (!recvTransport) {
+      console.error("❌ Receive transport not found for socket: in connect recv", socket.id);
+      return;
+    }
+
+    try {
+      if(!recv_connected){
+        await recvTransport.connect({ dtlsParameters });
+        recvTransport.__connected = true;
+        recv_connected=true;
+        console.log("✅ RecvTransport connected for", socket.id);
+       callback({ success: true, result: "Transport connected" });
+      }
+    } catch (error)
+    {
+      callback({ success: false, error: error });
+      console.error("❌ Error connecting recvTransport:", error);
+    }
+  });
+  
+  let audioConsumer:mediasoup.types.Consumer;
+  let vidConsumer:mediasoup.types.Consumer;
+
+  socket.on("producer-check", async (
+    { //VidId,
+      AudId,
+      RtpCapabilities,
+      //transportId
+    }) => {
+    try {
+      const transport=sendTransports[socket.id];
+      //console.log(RtpCapabilities);
+      // if (router.canConsume({ producerId: VidId,
+      //   rtpCapabilities:RTPSS})) {
+      //   console.log("✅ Can consume video producer:", AudId);
+      // } else {
+      //   console.warn("🚫 Cannot consume video producer:", AudId);
+      // }
+      
+      // check for audio producer
+      if (router.canConsume({ producerId: AudId, 
+        rtpCapabilities:RTPSS})) {
+        console.log("✅ Can consume audio producer:", AudId);
+      } else {
+        console.warn("🚫 Cannot consume audio producer:", AudId);
+      }
+
+      console.log(RTPSS);
+
+    //Start Consumption process
+    const audConsumer= await transport.consume({
+      producerId:AudId,
+      rtpCapabilities:RTPSS,
+      //paused:true
+    });
+    console.log("audconsumer is:",audConsumer);
+
+    // const vidConsumer= await transport.consume({
+    //   producerId:AudId,
+    //   rtpCapabilities:RTPSS,
+    //   paused:true
+    // });
+
+    //   transport,
+    //   AudId,
+    //   rtpCapabilities
+    // );
+
+    // consumers[socket.id]['audio']=audConsumer;
+    audioConsumer=audConsumer;
+    //Server side consumer made and data sent to client
+    socket.emit("consumer-made",audConsumer);
+    //socket.emit("consumer-made",vidConsumer)
+  } catch (err) {
+    console.error("❌ Error while checking producer consumption:", err);
+  }
+});
+
+//resuming audio flow on the consumer
+socket.on("resume-consumer", async ({consumerId,kind}) => {
+  //const consumer = audioConsumer; //consumers[socket.id][kind]; //(consumerId);
+  // if (consumer) {
+  //   await consumer.resume();
+  //   console.log("▶️ Consumer resumed:", consumerId);
+  // }
+});
 
   //this request comes from inside transport created
   //this evennt is triggered by the  transport
   // socket.on(
   //   "consume",
-  //   async (
-  //   { rtpCapabilities, roomId, consumerId }: ConsumeRequest,
-  //     callback: (consumers: ConsumerData[]) => void
+  //   async ({ rtpCapabilities, roomId, consumerId }: ConsumeRequest,callback: (consumers: ConsumerData[]) => void
   //   ) => {
   //   try {
 
@@ -585,4 +654,3 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
 });
 
 server.listen(8269, () => console.log("Server running on port 8269"));
-
